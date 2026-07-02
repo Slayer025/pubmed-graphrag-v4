@@ -18,7 +18,7 @@ Thumbs.db
 
 # Large pipeline artifacts — fetched at runtime via ARTIFACT_BASE_URL / HF.
 data/
-outputs/
+outputs/*
 
 .cache/
 *.cache
@@ -39,6 +39,8 @@ pip_cache_backup/
 .env
 
 # Evaluation metrics and plots are intentionally tracked.
+!outputs/baseline_metrics.json
+!outputs/new_methods_metrics.json
 !outputs/final_evaluation_metrics.json
 !outputs/final_recall_comparison.png
 

@@ -1,0 +1,1 @@
+{"dense_only": {"recall_at_5": 0.025, "recall_at_10": 0.050}, "hybrid_rrf": {"recall_at_5": 0.050, "recall_at_10": 0.100}, "hnsw_only": {"recall_at_5": 0.025, "recall_at_10": 0.050}}
