@@ -15,6 +15,7 @@ import numpy as np
 import requests
 
 from src.config import AppConfig
+from src.embeddings import normalize_embeddings
 from src.infrastructure.storage.safety_guard import (
     assert_no_repo_write,
     detect_repo_root,
