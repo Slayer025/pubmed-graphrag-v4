@@ -58,3 +58,4 @@ dist/
 
 # Streamlit secrets must never be committed.
 .streamlit/secrets.toml
+data/graph/
