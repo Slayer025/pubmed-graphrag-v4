@@ -52,6 +52,8 @@ pip_cache_backup/
 !outputs/final_evaluation_metrics.json
 !outputs/phase8_improvements.md
 !outputs/final_recall_comparison.png
+!outputs/phase_trajectory.png
+!outputs/phase_evolution.png
 
 # Graph CSVs skipped from GitHub deployment (false-positive secret scanning).
 # They are optional for the demo; app bootstrap treats them as non-required.
@@ -62,4 +64,3 @@ dist/
 
 # Streamlit secrets must never be committed.
 .streamlit/secrets.toml
-data/graph/
