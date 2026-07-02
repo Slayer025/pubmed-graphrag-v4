@@ -11,7 +11,7 @@ Configuration is read from environment variables / Streamlit secrets:
 * ``EMBEDDING_PROVIDER`` - ``local`` (default), ``remote_http``, or ``huggingface_api``
 * ``EMBEDDING_SERVICE_URL`` - URL for ``remote_http`` mode
 * ``HF_API_TOKEN`` - HuggingFace API token for ``huggingface_api`` mode
-* ``EMBEDDING_MODEL`` - model identifier, defaults to ``all-MiniLM-L6-v2``
+* ``EMBEDDING_MODEL`` - model identifier, defaults to ``sentence-transformers/all-MiniLM-L6-v2``
 
 If a remote call fails, the client gracefully falls back to the local
 sentence-transformers model (if it can be loaded) so the Streamlit app never

@@ -15,10 +15,18 @@ __pycache__/
 Thumbs.db
 
 *.log
+log_*.txt
 
 # Large pipeline artifacts — fetched at runtime via ARTIFACT_BASE_URL / HF.
-data/
-outputs/
+data/**
+!data/embeddings/
+!data/embeddings/*.npy
+!data/chunks/
+!data/chunks/chunks_semantic.jsonl.gz
+!data/graph/
+!data/graph/*.csv
+
+outputs/*
 
 .cache/
 *.cache
@@ -39,7 +47,10 @@ pip_cache_backup/
 .env
 
 # Evaluation metrics and plots are intentionally tracked.
+!outputs/baseline_metrics.json
+!outputs/new_methods_metrics.json
 !outputs/final_evaluation_metrics.json
+!outputs/phase8_improvements.md
 !outputs/final_recall_comparison.png
 
 build/

@@ -107,7 +107,11 @@ Estimates output size before writing; aborts if estimate exceeds 1 GB.
 | **Input** | `data/chunks/chunks_semantic.jsonl.gz` |
 | **Output** | `data/embeddings/semantic_embeddings.npy` (L2-normalized float32) |
 
-Model: `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions).
+Model: `NeuML/pubmedbert-base-embeddings` (768 dimensions).
+
+MiniLM (`sentence-transformers/all-MiniLM-L6-v2`, 384-d) remains an optional
+fallback for limited environments; set it in both `src.config.EmbeddingConfig`
+and Streamlit secrets when using it.
 
 ### `src/visualize_chunks.py`
 
@@ -257,7 +261,7 @@ Notes:
 | `data/chunks/chunks_fixed.jsonl.gz` | 2.2 MB | 15 582 fixed-token chunks |
 | `data/chunks/chunks_sentence.jsonl.gz` | 2.2 MB | 17 449 sentence chunks |
 | `data/chunks/chunks_semantic.jsonl.gz` | 2.2 MB | 15 556 semantic chunks |
-| `data/embeddings/semantic_embeddings.npy` | 23 MB | Shape `(15556, 384)` |
+| `data/embeddings/semantic_embeddings.npy` | 47 MB | Shape `(15556, 768)` |
 | `outputs/semantic_clusters.png` | 712 KB | 2-D embedding visualization |
 | `data/graph/entities.jsonl.gz` | 407 KB | Entity mentions per semantic chunk |
 | `data/graph/articles.csv` | 5.9 MB | 5 000 Article nodes |
@@ -422,7 +426,7 @@ openai = "sk-..."
 [embedding]
 provider = "huggingface_api"   # or "local" / "remote_http"
 hf_api_token = "hf_..."
-model = "sentence-transformers/all-MiniLM-L6-v2"
+model = "NeuML/pubmedbert-base-embeddings"  # v4 default (768-d)
 
 [app]
 artifact_base_url = "https://github.com/<owner>/<repo>/releases/download/v2.1-hnsw"
@@ -483,8 +487,8 @@ Query
   │
   ▼
 ┌─────────────────┐
-│ Query embedding │  sentence-transformers/all-MiniLM-L6-v2
-│ (384-d, L2      │
+│ Query embedding │  NeuML/pubmedbert-base-embeddings
+│ (768-d, L2      │
 │  normalized)    │
 └────────┬────────┘
          ▼
@@ -651,7 +655,7 @@ No Neo4j server is required to generate the CSV files — `create_graph.py` prod
 4. **Metadata boost metrics unchanged** — Evaluation queries don't contain entity-label keywords (gene, drug, disease). Architecture proven; needs targeted query set to show effect.
 
 5. **Secret leakage** — FIXED. Added `scrub_secrets()` utility, hid `HF_API_TOKEN` from `EmbeddingConfig` repr, and scrubbed tokens from logs, errors, and UI output.
-6. **Dense retrieval is weak on the 40-query set** — INVESTIGATED. Dense-only recall is only ~5% at Recall@10. The semantic embedding model (`all-MiniLM-L6-v2`) and vector index are functioning correctly; the query set contains many exact-entity/keyword questions that BM25 handles much better. AAR fusion therefore intentionally ignores the dense seed and fuses BM25 + TF-IDF at the article level.
+6. **Dense retrieval is weak on the 40-query set** — INVESTIGATED (MiniLM era). Dense-only recall was only ~5% at Recall@10 with `all-MiniLM-L6-v2`. Phase A upgrades the production embedding model to PubMedBERT (`NeuML/pubmedbert-base-embeddings`, 768-d) for stronger biomedical relevance; the fixed 384-d artifacts remain a MiniLM fallback for limited environments.
 7. **AAR fusion recall was 0–7.5%** — FIXED. Removed missing-rank penalty, added article-level fusion, converted AAR rank to a positive score, and tuned retrieval depth to `candidate_k=20`. Final AAR Recall@5 = 12.5%, Recall@10 = 15.0%, beating all standalone methods.
 
 ## Limitations

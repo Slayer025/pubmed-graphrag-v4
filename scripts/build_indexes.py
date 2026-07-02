@@ -30,6 +30,7 @@ os.environ.setdefault("HF_HOME", str(Path(tempfile.gettempdir()) / "hf_cache"))
 
 from src.embeddings import (
     DEFAULT_BATCH_SIZE,
+    DEFAULT_EMBEDDING_DIM,
     DEFAULT_MODEL_NAME,
     create_embedding_model,
     embed_texts,
@@ -44,8 +45,6 @@ RAW_ARTICLES_PATH = Path("data/pubmed_5000.jsonl.gz")
 CHUNKS_DIR = Path("data/chunks")
 EMBEDDINGS_DIR = Path("data/embeddings")
 
-FIXED_WINDOW_SIZE = 500
-FIXED_OVERLAP = 50
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.?!])\s+(?=[A-Z0-9])")
 
 
@@ -71,63 +70,6 @@ def load_articles(path: Path) -> list[dict[str, Any]]:
 
 def _chunk_id(article_id: int | str, strategy: str, index: int) -> str:
     return f"{article_id}_{strategy}_{index:04d}"
-
-
-def _move_to_word_boundary(text: str, position: int, direction: int = -1) -> int:
-    """Shift ``position`` to the nearest word boundary inside ``text``."""
-    if position <= 0 or position >= len(text):
-        return position
-    if direction < 0:
-        while position > 0 and text[position] != " ":
-            position -= 1
-    else:
-        while position < len(text) and text[position] != " ":
-            position += 1
-    return position
-
-
-def chunk_fixed(
-    article_id: int | str,
-    text: str,
-    *,
-    window_size: int = FIXED_WINDOW_SIZE,
-    overlap: int = FIXED_OVERLAP,
-) -> list[dict[str, Any]]:
-    """Create fixed-size character-window chunks with overlap."""
-    chunks: list[dict[str, Any]] = []
-    if not text:
-        return chunks
-
-    start = 0
-    index = 0
-    while start < len(text):
-        end = min(start + window_size, len(text))
-        if end < len(text):
-            end = _move_to_word_boundary(text, end, direction=-1)
-        if end <= start:
-            end = min(start + window_size, len(text))
-
-        chunk_text = text[start:end].strip()
-        if chunk_text:
-            chunks.append(
-                {
-                    "article_id": article_id,
-                    "chunk_id": _chunk_id(article_id, "fixed", index),
-                    "text": chunk_text,
-                    "strategy": "fixed",
-                }
-            )
-            index += 1
-
-        next_start = end - overlap
-        if next_start <= start:
-            next_start = end
-        next_start = _move_to_word_boundary(text, next_start, direction=1)
-        if next_start >= len(text) or next_start <= start:
-            break
-        start = next_start
-
-    return chunks
 
 
 def chunk_sentence(
@@ -171,13 +113,28 @@ def build_index(
     """Chunk articles and embed the resulting texts."""
     import numpy as np
 
-    chunker = chunk_fixed if strategy == "fixed" else chunk_sentence
+    if strategy not in {"semantic", "sentence"}:
+        raise ValueError(f"Unsupported strategy: {strategy!r} (expected 'semantic' or 'sentence')")
+
+    chunker = chunk_sentence
     chunks: list[dict[str, Any]] = []
     for article in articles:
         chunks.extend(chunker(article["article_id"], article.get("abstract", "")))
 
     if not chunks:
-        return chunks, np.empty((0, DEFAULT_EMBEDDING_DIM), dtype=np.float32)
+        try:
+            dim = int(
+                getattr(
+                    model,
+                    "get_embedding_dimension",
+                    getattr(
+                        model, "get_sentence_embedding_dimension", lambda: DEFAULT_EMBEDDING_DIM
+                    ),
+                )()
+            )
+        except Exception:
+            dim = DEFAULT_EMBEDDING_DIM
+        return chunks, np.empty((0, dim), dtype=np.float32)
 
     texts = [chunk["text"] for chunk in chunks]
     embeddings = embed_texts(texts, model, batch_size=batch_size)
@@ -186,12 +143,12 @@ def build_index(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build fixed and sentence chunk indexes.")
+    parser = argparse.ArgumentParser(description="Build semantic and sentence chunk indexes.")
     parser.add_argument(
         "--model",
         type=str,
         default=DEFAULT_MODEL_NAME,
-        help="Sentence-transformers model identifier (default: all-MiniLM-L6-v2).",
+        help="Sentence-transformers model identifier (default: sentence-transformers/all-MiniLM-L6-v2).",    # noqa: E501
     )
     parser.add_argument(
         "--batch-size",
@@ -207,9 +164,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--strategies",
         nargs="+",
-        choices=["fixed", "sentence"],
-        default=["fixed", "sentence"],
-        help="Which alternate indexes to build (default: both).",
+        choices=["semantic", "sentence"],
+        default=["semantic", "sentence"],
+        help="Which indexes to build (default: both).",
     )
     return parser.parse_args()
 
@@ -234,7 +191,10 @@ def main() -> int:
     model = create_embedding_model(args.model)
 
     strategy_files = {
-        "fixed": (CHUNKS_DIR / "chunks_fixed.jsonl.gz", EMBEDDINGS_DIR / "fixed_embeddings.npy"),
+        "semantic": (
+            CHUNKS_DIR / "chunks_semantic.jsonl.gz",
+            EMBEDDINGS_DIR / "semantic_embeddings.npy",
+        ),
         "sentence": (
             CHUNKS_DIR / "chunks_sentence.jsonl.gz",
             EMBEDDINGS_DIR / "sentence_embeddings.npy",

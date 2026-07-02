@@ -36,9 +36,16 @@ class Neo4jConfig:
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
-    """Embedding model, provider, and artifact settings."""
+    """Embedding model, provider, and artifact settings.
+
+    Production default is the lightweight MiniLM model (384-dim) so the
+    Streamlit demo works without downloading large biomedical models.
+    PubMedBERT (NeuML/pubmedbert-base-embeddings, 768-dim) remains the
+    planned future default once a full artifact rebuild is completed.
+    """
 
     provider: str = "local"
+    # Lightweight sentence embedding model used for deployment.
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
     batch_size: int = 64
@@ -149,7 +156,7 @@ class RetrievalConfig:
     use_hnsw: bool = False
 
     # Phase 7: new retrieval / reranking methods
-    use_tfidf: bool = False
+    use_tfidf: bool = True
     use_mmr_rerank: bool = False
     mmr_lambda: float = 0.5
     use_cross_encoder_rerank: bool = False
