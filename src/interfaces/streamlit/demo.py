@@ -554,10 +554,20 @@ def main() -> int:
                 help="Uses pre-built HNSW approximate-nearest-neighbor indexes instead of exact NumPy search.",
             )
             logger.info("UI: use_hnsw checkbox = %s", use_hnsw)
+            app_config = AppConfig.default()
+            default_use_tfidf = app_config.retrieval.use_tfidf
+            default_use_hybrid = app_config.retrieval.use_hybrid
+
             use_hybrid = st.checkbox(
                 "Enable Hybrid Retrieval",
-                value=False,
+                value=default_use_hybrid,
                 help="Combines dense vector search with BM25 keyword matching using Reciprocal Rank Fusion.",
+            )
+            use_tfidf = st.checkbox(
+                "Use TF-IDF instead of BM25",
+                value=default_use_tfidf,
+                help="Replaces BM25 keyword retrieval with sklearn TF-IDF in hybrid/AAR modes. "
+                     "Also enables dense+TF-IDF fusion when hybrid is off but TF-IDF is on.",
             )
             enable_metadata_boost = st.checkbox(
                 "Enable Metadata-Aware Boosting",
@@ -591,11 +601,6 @@ def main() -> int:
             )
 
         with st.expander("🔬 Advanced Retrieval Methods", expanded=True):
-            use_tfidf = st.checkbox(
-                "Use TF-IDF instead of BM25",
-                value=False,
-                help="Replaces BM25 keyword retrieval with sklearn TF-IDF in hybrid/AAR modes.",
-            )
             use_aar_fusion = st.checkbox(
                 "Enable AAR Fusion",
                 value=False,

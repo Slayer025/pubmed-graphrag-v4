@@ -192,6 +192,9 @@ class RetrieveDocumentsUseCase:
         elif routed_config.use_hybrid and self.sparse_retriever is not None:
             logger.info("RETRIEVAL: mode=hybrid")
             results = self._run_hybrid_rrf(query, routed_config, vector_results)
+        elif routed_config.use_tfidf and self.tfidf_retriever is not None:
+            logger.info("RETRIEVAL: mode=tfidf_dense")
+            results = self._run_tfidf_dense(query, routed_config, vector_results)
         else:
             logger.info("RETRIEVAL: mode=dense_only")
             seed_ids = {chunk_id for chunk_id, _ in vector_results}
@@ -228,6 +231,32 @@ class RetrieveDocumentsUseCase:
             (result.chunk_id, result.rrf_score) for result in fused[: config.top_k]
         ]
 
+        seed_ids = {chunk_id for chunk_id, _ in fused_results}
+        expanded = self.graph_expand.execute(seed_ids, config)
+        return self.rerank.execute(fused_results, expanded, config)
+
+    def _run_tfidf_dense(
+        self,
+        query: Query,
+        config: SearchConfig,
+        vector_results: list[tuple[str, float]],
+    ) -> list[RetrievalResult]:
+        """Combine dense seed with TF-IDF via reciprocal rank fusion."""
+        if self.tfidf_retriever is None:
+            logger.warning("TF-IDF requested but retriever unavailable; falling back to dense_only")
+            seed_ids = {chunk_id for chunk_id, _ in vector_results}
+            expanded = self.graph_expand.execute(seed_ids, config)
+            return self.rerank.execute(vector_results, expanded, config)
+
+        tfidf_results = self.tfidf_retriever.search(query.text, config.top_k)
+        fused = self.rrf_fusion_service.fuse(
+            [{"chunk_id": chunk_id, "score": score} for chunk_id, score in vector_results],
+            [{"chunk_id": chunk_id, "score": score} for chunk_id, score in tfidf_results],
+            k=config.rrf_k,
+        )
+        fused_results = [
+            (result.chunk_id, result.rrf_score) for result in fused[: config.top_k]
+        ]
         seed_ids = {chunk_id for chunk_id, _ in fused_results}
         expanded = self.graph_expand.execute(seed_ids, config)
         return self.rerank.execute(fused_results, expanded, config)

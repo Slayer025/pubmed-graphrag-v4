@@ -40,6 +40,20 @@ DEFAULT_REMOTE_RETRIES = 3
 DEFAULT_REMOTE_BACKOFF_SECONDS = 1.0
 
 
+def _read_embedding_provider_secret() -> str | None:
+    """Read EMBEDDING_PROVIDER from Streamlit secrets when available."""
+    try:
+        import streamlit as st  # type: ignore
+
+        if hasattr(st, "secrets"):
+            value = st.secrets.get("EMBEDDING_PROVIDER")
+            if value:
+                return str(value).strip() or None
+    except Exception:
+        pass
+    return None
+
+
 class EmbeddingClientResult:
     """Result returned by the embedding factory: client plus runtime metadata."""
 
@@ -296,7 +310,11 @@ def create_embedding_client(
     cache_folder: str | None = None,
 ) -> EmbeddingClientResult:
     """Factory for creating an embedding client with explicit mode reporting."""
-    selected_provider = (provider or os.environ.get("EMBEDDING_PROVIDER", "local")).lower().strip()
+    selected_provider = (
+        provider
+        or _read_embedding_provider_secret()
+        or os.environ.get("EMBEDDING_PROVIDER", "local")
+    ).lower().strip()
     resolved_model = model_name or os.environ.get("EMBEDDING_MODEL") or DEFAULT_MODEL_NAME
     resolved_token = api_token or os.environ.get("HF_API_TOKEN")
     resolved_url = service_url or os.environ.get("EMBEDDING_SERVICE_URL")
