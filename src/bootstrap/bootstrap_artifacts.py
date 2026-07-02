@@ -9,8 +9,9 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, TypedDict
+from typing import TYPE_CHECKING, Any, Iterator, TypedDict
 
+import numpy as np
 import requests
 
 from src.config import AppConfig
@@ -21,6 +22,7 @@ from src.infrastructure.storage.safety_guard import (
     safe_write_file,
     verify_no_repo_writes,
 )
+from src.storage import iter_jsonl_gz
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,10 @@ if TYPE_CHECKING:
     from src.infrastructure.storage.artifact_loader import LoadedArtifacts
 
 MIN_VALID_SIZE_DEFAULT = 1024
-ARTIFACT_BASE_URL = os.environ.get("ARTIFACT_BASE_URL", "TODO_SET_THIS")
+# Remote downloads are disabled by default.  Set ARTIFACT_BASE_URL to a release
+# URL to re-enable optional artifact downloads; the demo works with repo-bundled
+# artifacts only.
+ARTIFACT_BASE_URL = os.environ.get("ARTIFACT_BASE_URL", "")
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503})
 _RETRY_BACKOFF_SECONDS = (1, 2, 4)
@@ -53,14 +58,11 @@ _CACHE_LOGICAL_PATHS: tuple[str, ...] = (
     "data/hnsw/manifest.json",
 )
 
-# Minimum artifact set required for the Streamlit demo.  Multi-index and HNSW
-# files are optional; the demo runs on the semantic index + graph artifacts.
+# Minimum artifact set required for the Streamlit demo.  Multi-index, graph,
+# and HNSW files are optional; the demo runs on semantic chunks + embeddings.
 _REQUIRED_ARTIFACT_PATHS: tuple[str, ...] = (
     "data/chunks/chunks_semantic.jsonl.gz",
     "data/embeddings/semantic_embeddings.npy",
-    "data/graph/mentions.csv",
-    "data/graph/has_chunk.csv",
-    "data/graph/entities.csv",
 )
 
 _ARTIFACT_REMOTE_NAMES: dict[str, str] = {
@@ -414,15 +416,18 @@ def _ensure_artifact(
         return None
 
     base_url = ARTIFACT_BASE_URL.rstrip("/")
-    if base_url == "TODO_SET_THIS":
+    if base_url in {"TODO_SET_THIS", ""}:
         logger.warning(
             "ARTIFACT_BASE_URL not set; cannot download %s. Checking local cache only.",
             logical_key,
         )
-        if _use_stale_or_fail(cache_path, logical_key):
+        if _artifact_file_valid(cache_path, logical_key):
             status["cached"].append(logical)
             return cache_path
-        status["missing"].append(logical)
+        if logical in _REQUIRED_ARTIFACT_PATHS:
+            status["missing"].append(logical)
+        else:
+            logger.warning("Optional artifact missing and downloads disabled: %s", logical_key)
         return None
 
     url = f"{base_url}/{remote_name}"
@@ -432,7 +437,10 @@ def _ensure_artifact(
         status["cached"].append(logical)
         return cache_path
 
-    status["failed"].append(logical)
+    if logical in _REQUIRED_ARTIFACT_PATHS:
+        status["failed"].append(logical)
+    else:
+        logger.warning("Optional artifact unavailable: %s", logical_key)
     return None
 
 
@@ -510,9 +518,12 @@ def bootstrap_artifacts(cache_dir: str | None = None) -> BootstrapStatus:
             from src.infrastructure.storage.artifact_loader import ArtifactLoader
 
             cfg = AppConfig.default()
-            _preloaded_artifacts = ArtifactLoader.load_from_paths(
-                *core_artifact_paths(resolved_cache_dir),
-                embedding_dim=cfg.embedding.embedding_dim,
+            # Only the core semantic set is required; graph files are optional and
+            # the loader will fail if we ask for missing graph paths, so pass empty
+            # graph placeholders when graph CSVs are absent.
+            core_paths = core_artifact_paths(resolved_cache_dir)
+            _preloaded_artifacts = _load_artifacts_flexible(
+                ArtifactLoader, core_paths, cfg.embedding.embedding_dim
             )
         except Exception as exc:
             logger.error("Failed to preload artifacts into memory: %s", exc)
@@ -540,6 +551,61 @@ def bootstrap_artifacts(cache_dir: str | None = None) -> BootstrapStatus:
         "Artifact bootstrap failed; required artifacts are unavailable. "
         f"missing={status['missing']}, failed={status['failed']}"
     )
+
+
+def _load_artifacts_flexible(
+    loader_class: Any,
+    core_paths: tuple[str, str, str, str, str],
+    embedding_dim: int,
+) -> "LoadedArtifacts":
+    """Load core artifacts, tolerating missing optional graph CSVs."""
+    chunks_path, embeddings_path, mentions_path, has_chunk_path, entities_path = core_paths
+    missing_graph = [
+        p
+        for p in (mentions_path, has_chunk_path, entities_path)
+        if not _artifact_file_valid(Path(p), _logical_key(p))
+    ]
+    if missing_graph:
+        logger.warning(
+            "Graph artifacts missing; loading vector-only artifacts. missing=%s", missing_graph
+        )
+        from src.infrastructure.storage.csv_loader import load_csv
+
+        chunks = list(iter_jsonl_gz(Path(chunks_path)))
+        embeddings = np.load(embeddings_path)
+        if embeddings.shape[0] != len(chunks):
+            raise ValueError(
+                f"Embedding rows ({embeddings.shape[0]}) do not match chunk count ({len(chunks)})."
+            )
+        if embeddings.shape[1] != embedding_dim:
+            raise ValueError(
+                f"Embedding dimension ({embeddings.shape[1]}) does not match config ({embedding_dim})."
+            )
+        embeddings = normalize_embeddings(embeddings)
+        empty: list[dict[str, str]] = []
+        return loader_class.__new__(loader_class).LoadedArtifacts(
+            chunks=chunks,
+            embeddings=embeddings,
+            mentions=empty,
+            has_chunk=empty,
+            entities=empty,
+        )
+    return loader_class.load_from_paths(
+        chunks_path,
+        embeddings_path,
+        mentions_path,
+        has_chunk_path,
+        entities_path,
+        embedding_dim=embedding_dim,
+    )
+
+
+def _logical_key(path: str) -> str:
+    """Return the logical artifact key for a cache/repo path."""
+    for logical in _CACHE_LOGICAL_PATHS:
+        if logical in path.replace("\\", "/"):
+            return logical
+    return Path(path).name
 
 
 def get_preloaded_artifacts() -> "LoadedArtifacts":
