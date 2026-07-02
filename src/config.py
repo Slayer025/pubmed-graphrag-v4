@@ -155,7 +155,7 @@ class RetrievalConfig:
     use_hnsw: bool = False
 
     # Phase 7: new retrieval / reranking methods
-    use_tfidf: bool = False
+    use_tfidf: bool = True
     use_mmr_rerank: bool = False
     mmr_lambda: float = 0.5
     use_cross_encoder_rerank: bool = False

@@ -306,4 +306,23 @@ def create_semantic_embeddings(
 
 
 if __name__ == "__main__":
-    create_semantic_embeddings()
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Embed chunks")
+    parser.add_argument("--input", required=True, help="Input chunks file")
+    parser.add_argument("--output", required=True, help="Output embeddings file")
+    parser.add_argument(
+        "--batch-size", type=int, default=512, help="Batch size (default: 512)"
+    )
+    args = parser.parse_args()
+
+    # Override the module default so downstream functions use the CLI value.
+    DEFAULT_BATCH_SIZE = args.batch_size
+
+    create_semantic_embeddings(
+        input_path=args.input,
+        output_path=args.output,
+        model_name=DEFAULT_MODEL_NAME,
+        batch_size=args.batch_size,
+    )
