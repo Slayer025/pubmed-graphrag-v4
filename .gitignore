@@ -53,6 +53,10 @@ pip_cache_backup/
 !outputs/phase8_improvements.md
 !outputs/final_recall_comparison.png
 
+# Graph CSVs skipped from GitHub deployment (false-positive secret scanning).
+# They are optional for the demo; app bootstrap treats them as non-required.
+data/graph/
+
 build/
 dist/
 
