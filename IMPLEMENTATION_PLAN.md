@@ -174,7 +174,7 @@ The app should read embedding configuration from Streamlit secrets:
 EMBEDDING_PROVIDER = "huggingface_api" # Options: local, remote_http, huggingface_api
 EMBEDDING_SERVICE_URL = "https://your-custom-api.com/embed"
 HF_API_TOKEN = "hf_xxxxxxxxxxxx"
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL = "NeuML/pubmedbert-base-embeddings"  # v4 default (768-d)
 ```
 
 **Error Handling:** If the remote API fails or times out, the client must gracefully fallback to `local` mode (if the model is cached) or return a clear UI error, **never crashing the Streamlit app**.
@@ -185,7 +185,7 @@ The UI and logs should show:
 
 ```text
 Embedding provider: huggingface_api
-Embedding model: all-MiniLM-L6-v2
+Embedding model: NeuML/pubmedbert-base-embeddings
 Embedding latency: 120 ms
 Retrieval latency: 90 ms
 ```

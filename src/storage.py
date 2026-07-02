@@ -96,6 +96,7 @@ PUBMED_FULL_DOWNLOAD = DiskUsageEstimate(
 
 # Approximate HuggingFace Hub download sizes for common embedding models.
 _MODEL_DISK_ESTIMATES: dict[str, int] = {
+    "NeuML/pubmedbert-base-embeddings": 420 * 1024**2,
     "sentence-transformers/all-MiniLM-L6-v2": 90 * 1024**2,
     "sentence-transformers/all-mpnet-base-v2": 420 * 1024**2,
     "sentence-transformers/all-MiniLM-L12-v2": 130 * 1024**2,

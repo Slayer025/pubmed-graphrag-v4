@@ -36,11 +36,17 @@ class Neo4jConfig:
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
-    """Embedding model, provider, and artifact settings."""
+    """Embedding model, provider, and artifact settings.
+
+    Phase A: PubMedBERT is the production default (768-dim biomedical
+    embeddings). MiniLM is retained as a commented/override option for
+    environments where the PubMedBERT download is impractical.
+    """
 
     provider: str = "local"
-    model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
-    embedding_dim: int = 384
+    # PubMedBERT biomedical embedding model used in v4.
+    model_name: str = "NeuML/pubmedbert-base-embeddings"
+    embedding_dim: int = 768
     batch_size: int = 64
     normalize: bool = True
     api_token: str | None = field(default=None, repr=False)

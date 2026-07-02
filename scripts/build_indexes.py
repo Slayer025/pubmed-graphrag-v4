@@ -30,6 +30,7 @@ os.environ.setdefault("HF_HOME", str(Path(tempfile.gettempdir()) / "hf_cache"))
 
 from src.embeddings import (
     DEFAULT_BATCH_SIZE,
+    DEFAULT_EMBEDDING_DIM,
     DEFAULT_MODEL_NAME,
     create_embedding_model,
     embed_texts,
@@ -177,7 +178,19 @@ def build_index(
         chunks.extend(chunker(article["article_id"], article.get("abstract", "")))
 
     if not chunks:
-        return chunks, np.empty((0, DEFAULT_EMBEDDING_DIM), dtype=np.float32)
+        try:
+            dim = int(
+                getattr(
+                    model,
+                    "get_embedding_dimension",
+                    getattr(
+                        model, "get_sentence_embedding_dimension", lambda: DEFAULT_EMBEDDING_DIM
+                    ),
+                )()
+            )
+        except Exception:
+            dim = DEFAULT_EMBEDDING_DIM
+        return chunks, np.empty((0, dim), dtype=np.float32)
 
     texts = [chunk["text"] for chunk in chunks]
     embeddings = embed_texts(texts, model, batch_size=batch_size)
@@ -191,7 +204,7 @@ def _parse_args() -> argparse.Namespace:
         "--model",
         type=str,
         default=DEFAULT_MODEL_NAME,
-        help="Sentence-transformers model identifier (default: all-MiniLM-L6-v2).",
+        help="Sentence-transformers model identifier (default: NeuML/pubmedbert-base-embeddings).",    # noqa: E501
     )
     parser.add_argument(
         "--batch-size",

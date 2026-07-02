@@ -23,8 +23,9 @@ if False:  # noqa: SIM108
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-DEFAULT_EMBEDDING_DIM = 384
+DEFAULT_MODEL_NAME = "NeuML/pubmedbert-base-embeddings"
+# PubMedBERT produces 768-dimensional vectors.
+DEFAULT_EMBEDDING_DIM = 768
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_INPUT_PATH = Path("data/chunks/chunks_semantic.jsonl.gz")
 DEFAULT_OUTPUT_PATH = Path("data/embeddings/semantic_embeddings.npy")
@@ -67,7 +68,9 @@ def create_embedding_model(
         cache_folder = os.environ.get("HF_HOME", "/tmp/hf_cache")
 
     candidates: list[str] = []
-    for name in (model_name, DEFAULT_MODEL_NAME, "all-MiniLM-L6-v2"):
+    # Keep MiniLM as a fallback option so offline/limited environments can still
+    # start, but PubMedBERT is the production default.
+    for name in (model_name, DEFAULT_MODEL_NAME, "sentence-transformers/all-MiniLM-L6-v2"):
         if name not in candidates:
             candidates.append(name)
 
@@ -83,9 +86,14 @@ def create_embedding_model(
             logger.warning("Failed to load embedding model %s: %s", name, exc)
             continue
         logger.info(
-            "Embedding model loaded in %.2f seconds (device=%s)",
+            "Embedding model loaded in %.2f seconds (device=%s, dim=%d)",
             time.perf_counter() - t0,
             getattr(model, "device", "unknown"),
+            getattr(
+                model,
+                "get_embedding_dimension",
+                getattr(model, "get_sentence_embedding_dimension", lambda: "unknown"),
+            )(),
         )
         return model
 
@@ -115,13 +123,17 @@ def estimate_embeddings_bytes(
     return num_chunks * embedding_dim * BYTES_PER_FLOAT32
 
 
-def log_embeddings_estimate(num_chunks: int, output_path: Path = DEFAULT_OUTPUT_PATH) -> int:
+def log_embeddings_estimate(
+    num_chunks: int,
+    embedding_dim: int = DEFAULT_EMBEDDING_DIM,
+    output_path: Path = DEFAULT_OUTPUT_PATH,
+) -> int:
     """Log estimated embedding output size and return byte estimate."""
-    estimated_bytes = estimate_embeddings_bytes(num_chunks)
+    estimated_bytes = estimate_embeddings_bytes(num_chunks, embedding_dim)
     logger.info(
         "Embedding output estimate: %d chunks x %d dims -> ~%s at %s",
         num_chunks,
-        DEFAULT_EMBEDDING_DIM,
+        embedding_dim,
         format_bytes(estimated_bytes),
         output_path,
     )
@@ -159,11 +171,22 @@ def embed_texts(
         A 2-D array of shape ``(len(texts), embedding_dim)``.
     """
     if not texts:
-        return np.empty((0, DEFAULT_EMBEDDING_DIM), dtype=np.float32)
+        # Infer dimension from the model when possible; only fall back to the
+        # static default for empty inputs where no model metadata is available.
+        try:
+            dim = int(
+                getattr(
+                    model,
+                    "get_embedding_dimension",
+                    getattr(
+                        model, "get_sentence_embedding_dimension", lambda: DEFAULT_EMBEDDING_DIM
+                    ),
+                )()
+            )
+        except Exception:
+            dim = DEFAULT_EMBEDDING_DIM
+        return np.empty((0, dim), dtype=np.float32)
 
-    import numpy as np
-
-    assert np is not None
     logger.info("Encoding %d texts in batches of %d", len(texts), batch_size)
     try:
         vectors = model.encode(
@@ -257,10 +280,24 @@ def create_semantic_embeddings(
         raise FileNotFoundError(f"Semantic chunk file not found: {input_path}")
 
     chunks = load_semantic_chunks(input_path)
-    estimated_bytes = log_embeddings_estimate(len(chunks), output_path=output_path)
+    # Infer dimension from the model rather than relying on the static default.
+    model = create_embedding_model(model_name)
+    try:
+        inferred_dim: int = int(
+            getattr(
+                model,
+                "get_embedding_dimension",
+                getattr(
+                    model, "get_sentence_embedding_dimension", lambda: DEFAULT_EMBEDDING_DIM
+                ),
+            )()
+        )
+    except Exception:
+        inferred_dim = DEFAULT_EMBEDDING_DIM
+
+    estimated_bytes = log_embeddings_estimate(len(chunks), embedding_dim=inferred_dim, output_path=output_path)
     ensure_within_size_limit(estimated_bytes)
 
-    model = create_embedding_model(model_name)
     texts = extract_chunk_texts(chunks)
     embeddings = embed_texts(texts, model, batch_size=batch_size)
     normalized = normalize_embeddings(embeddings)

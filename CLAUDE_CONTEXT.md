@@ -22,7 +22,9 @@ This file gives an AI assistant everything needed to resume work on the PubMed G
 [embedding]
 provider = "huggingface_api"  # or "local" / "remote_http"
 hf_api_token = "hf_..."        # required when provider = "huggingface_api"
-model = "sentence-transformers/all-MiniLM-L6-v2"
+model = "NeuML/pubmedbert-base-embeddings"  # v4 default (768-d)
+# fallback model for limited CPU environments:
+# model = "sentence-transformers/all-MiniLM-L6-v2"
 
 [app]
 artifact_base_url = "https://github.com/Slayer025/pubmed-graphrag-v2/releases/download/v2.1-hnsw"
@@ -79,7 +81,7 @@ pubmed-graphrag/
 ### Streamlit Cloud Rules
 - Single container; no local FastAPI server.
 - Ephemeral storage; artifacts bootstrapped from GitHub Release at runtime.
-- CPU-only; use small models (`sentence-transformers/all-MiniLM-L6-v2`).
+- CPU-only; default model is PubMedBERT (`NeuML/pubmedbert-base-embeddings`, 768-d). MiniLM (`all-MiniLM-L6-v2`, 384-d) remains a documented fallback for severely limited environments.
 - No heavy NLP libraries (no `nltk`, `spacy`).
 
 ### Backwards Compatibility
