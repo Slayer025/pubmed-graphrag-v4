@@ -15,6 +15,7 @@ __pycache__/
 Thumbs.db
 
 *.log
+log_*.txt
 
 # Large pipeline artifacts — fetched at runtime via ARTIFACT_BASE_URL / HF.
 data/
@@ -42,6 +43,7 @@ pip_cache_backup/
 !outputs/baseline_metrics.json
 !outputs/new_methods_metrics.json
 !outputs/final_evaluation_metrics.json
+!outputs/phase8_improvements.md
 !outputs/final_recall_comparison.png
 
 build/
