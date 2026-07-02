@@ -23,9 +23,9 @@ if False:  # noqa: SIM108
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "NeuML/pubmedbert-base-embeddings"
-# PubMedBERT produces 768-dimensional vectors.
-DEFAULT_EMBEDDING_DIM = 768
+DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+# MiniLM produces 384-dimensional vectors.
+DEFAULT_EMBEDDING_DIM = 384
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_INPUT_PATH = Path("data/chunks/chunks_semantic.jsonl.gz")
 DEFAULT_OUTPUT_PATH = Path("data/embeddings/semantic_embeddings.npy")

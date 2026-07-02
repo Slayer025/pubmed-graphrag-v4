@@ -19,7 +19,7 @@ from src.storage import DEFAULT_DATA_PATH, configure_hf_home, estimate_model_dow
 logger = logging.getLogger(__name__)
 
 DEFAULT_CHUNK_SIZE = 100
-DEFAULT_MODEL_NAME = "NeuML/pubmedbert-base-embeddings"
+DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 STRATEGY_FIXED: Literal["fixed"] = "fixed"
 STRATEGY_SENTENCE: Literal["sentence"] = "sentence"
 STRATEGY_SEMANTIC: Literal["semantic"] = "semantic"
