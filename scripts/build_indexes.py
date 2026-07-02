@@ -148,7 +148,7 @@ def _parse_args() -> argparse.Namespace:
         "--model",
         type=str,
         default=DEFAULT_MODEL_NAME,
-        help="Sentence-transformers model identifier (default: NeuML/pubmedbert-base-embeddings).",    # noqa: E501
+        help="Sentence-transformers model identifier (default: sentence-transformers/all-MiniLM-L6-v2).",    # noqa: E501
     )
     parser.add_argument(
         "--batch-size",

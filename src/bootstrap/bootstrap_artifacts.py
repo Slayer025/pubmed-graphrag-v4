@@ -53,6 +53,16 @@ _CACHE_LOGICAL_PATHS: tuple[str, ...] = (
     "data/hnsw/manifest.json",
 )
 
+# Minimum artifact set required for the Streamlit demo.  Multi-index and HNSW
+# files are optional; the demo runs on the semantic index + graph artifacts.
+_REQUIRED_ARTIFACT_PATHS: tuple[str, ...] = (
+    "data/chunks/chunks_semantic.jsonl.gz",
+    "data/embeddings/semantic_embeddings.npy",
+    "data/graph/mentions.csv",
+    "data/graph/has_chunk.csv",
+    "data/graph/entities.csv",
+)
+
 _ARTIFACT_REMOTE_NAMES: dict[str, str] = {
     "data/chunks/chunks_semantic.jsonl.gz": "chunks_semantic.jsonl.gz",
     "data/chunks/chunks_fixed.jsonl.gz": "chunks_fixed.jsonl.gz",
@@ -441,7 +451,10 @@ def _finalize_status(status: BootstrapStatus, paths: list[str]) -> BootstrapStat
         for logical, path in _logical_paths_for_cache(paths)
         if _artifact_file_valid(Path(path), logical)
     }
-    status["missing"] = [logical for logical in _CACHE_LOGICAL_PATHS if logical not in present]
+    # Only the required subset blocks startup; optional artifacts may be absent.
+    status["missing"] = [
+        logical for logical in _REQUIRED_ARTIFACT_PATHS if logical not in present
+    ]
     status["success"] = not status["missing"] and not status["failed"]
     return status
 
@@ -486,12 +499,13 @@ def bootstrap_artifacts(cache_dir: str | None = None) -> BootstrapStatus:
     except RuntimeError as exc:
         logger.warning("Repo write verification warning during bootstrap: %s", exc)
 
-    all_present = all(
+    required_present = all(
         _artifact_file_valid(Path(path), logical)
         for logical, path in _logical_paths_for_cache(paths)
+        if logical in _REQUIRED_ARTIFACT_PATHS
     )
     _preloaded_artifacts = None
-    if all_present:
+    if required_present:
         try:
             from src.infrastructure.storage.artifact_loader import ArtifactLoader
 
